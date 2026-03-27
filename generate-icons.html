@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head><title>Generate site2gif icons</title></head>
+<body>
+<h2>site2gif Icon Generator</h2>
+<p>Right-click each icon and "Save image as..." to the icons/ folder, or click the download links.</p>
+<div id="icons" style="display: flex; gap: 20px; align-items: end; margin: 20px;"></div>
+<script>
+const sizes = [16, 48, 128];
+
+sizes.forEach(size => {
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  const s = size;
+
+  // Background rounded rect
+  const r = s * 0.2;
+  ctx.beginPath();
+  ctx.moveTo(r, 0);
+  ctx.lineTo(s - r, 0);
+  ctx.quadraticCurveTo(s, 0, s, r);
+  ctx.lineTo(s, s - r);
+  ctx.quadraticCurveTo(s, s, s - r, s);
+  ctx.lineTo(r, s);
+  ctx.quadraticCurveTo(0, s, 0, s - r);
+  ctx.lineTo(0, r);
+  ctx.quadraticCurveTo(0, 0, r, 0);
+  ctx.closePath();
+
+  const grad = ctx.createLinearGradient(0, 0, s, s);
+  grad.addColorStop(0, '#e94560');
+  grad.addColorStop(1, '#7c3aed');
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Film strip perforations (subtle)
+  ctx.fillStyle = 'rgba(255,255,255,0.15)';
+  const perfSize = s * 0.06;
+  const perfGap = s * 0.14;
+  for (let y = s * 0.12; y < s * 0.9; y += perfGap) {
+    ctx.fillRect(s * 0.06, y, perfSize, perfSize);
+    ctx.fillRect(s - s * 0.06 - perfSize, y, perfSize, perfSize);
+  }
+
+  // "GIF" text
+  ctx.fillStyle = 'white';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = `bold ${s * 0.32}px -apple-system, sans-serif`;
+  ctx.fillText('GIF', s / 2, s / 2 + s * 0.02);
+
+  // Small record dot
+  ctx.beginPath();
+  ctx.arc(s * 0.78, s * 0.22, s * 0.08, 0, Math.PI * 2);
+  ctx.fillStyle = '#ff6b6b';
+  ctx.fill();
+  ctx.strokeStyle = 'white';
+  ctx.lineWidth = s * 0.02;
+  ctx.stroke();
+
+  const container = document.createElement('div');
+  container.style.textAlign = 'center';
+  canvas.style.border = '1px solid #ccc';
+  container.appendChild(canvas);
+
+  const link = document.createElement('a');
+  link.href = canvas.toDataURL('image/png');
+  link.download = `icon${size}.png`;
+  link.textContent = `icon${size}.png`;
+  link.style.display = 'block';
+  link.style.marginTop = '8px';
+  container.appendChild(link);
+
+  document.getElementById('icons').appendChild(container);
+});
+</script>
+</body>
+</html>
