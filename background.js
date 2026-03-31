@@ -11,7 +11,6 @@ let state = {
     fps: 10,
     scale: 1,
     quality: 'medium',
-    showCursor: true,
     loop: true,
     audioEnabled: false,
     micDeviceId: '',
@@ -67,13 +66,6 @@ async function startRecording() {
     const tabWidth = tabInfo.width || 0;
     const tabHeight = tabInfo.height || 0;
 
-    if (state.settings.showCursor) {
-      try {
-        await chrome.scripting.executeScript({ target: { tabId: state.tabId }, files: ['content.js'] });
-        chrome.tabs.sendMessage(state.tabId, { type: 'start-cursor-tracking' }).catch(() => {});
-      } catch (e) {}
-    }
-
     // Send full config to offscreen for audio/webcam support
     chrome.runtime.sendMessage({
       target: 'offscreen',
@@ -106,9 +98,6 @@ async function startRecording() {
 
 async function stopRecording() {
   if (state.status !== 'recording') return { error: 'Not recording' };
-  if (state.settings.showCursor && state.tabId) {
-    chrome.tabs.sendMessage(state.tabId, { type: 'stop-cursor-tracking' }).catch(() => {});
-  }
   state.duration = (Date.now() - state.startTime) / 1000;
   state.status = 'processing';
   updateBadge();
@@ -128,9 +117,42 @@ function getPublicState() {
     duration: state.duration,
     settings: state.settings,
     hasRecording: state.hasRecording,
-    videoSize: state.videoSize
+    videoSize: state.videoSize,
+    hasTabAudio: state.hasTabAudio || false,
+    hasMic: state.hasMic || false
   };
 }
+
+// ─── Tab switch during recording ───
+
+chrome.tabs.onActivated.addListener(async (activeInfo) => {
+  if (state.status !== 'recording') return;
+  if (activeInfo.tabId === state.tabId) return;
+
+  const oldTabId = state.tabId;
+  const newTabId = activeInfo.tabId;
+
+  try {
+    // Get new stream for the new tab
+    const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: newTabId });
+    const tabInfo = await chrome.tabs.get(newTabId);
+
+    // Tell offscreen to switch to the new tab's stream
+    chrome.runtime.sendMessage({
+      target: 'offscreen',
+      type: 'switch-tab',
+      streamId,
+      tabWidth: tabInfo.width || 0,
+      tabHeight: tabInfo.height || 0,
+      audioEnabled: state.settings.audioEnabled
+    }).catch(() => {});
+
+    state.tabId = newTabId;
+  } catch (e) {
+    console.warn('Tab switch capture failed:', e);
+    // Recording continues on the old tab
+  }
+});
 
 chrome.commands.onCommand.addListener((command) => {
   if (command === 'toggle-recording') {
@@ -170,6 +192,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       state.hasRecording = true;
       state.status = 'done';
       state.videoSize = msg.videoSize || 0;
+      state.hasTabAudio = msg.hasTabAudio || false;
+      state.hasMic = msg.hasMic || false;
       updateBadge();
       broadcast();
       return false;

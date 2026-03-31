@@ -35,6 +35,9 @@ const previewVideo = $('#previewVideo');
 const doneWebcam = $('#doneWebcam');
 const previewGif = $('#previewGif');
 const previewTabs = $('#previewTabs');
+const audioControls = $('#audioControls');
+const toggleTabAudio = $('#toggleTabAudio');
+const toggleMicAudio = $('#toggleMicAudio');
 const trimTrack = $('#trimTrack');
 const trimRange = $('#trimRange');
 const trimHandleStart = $('#trimHandleStart');
@@ -89,6 +92,10 @@ let doneWebcamUrl = null;
 let isCountingDown = false;
 let lastMp4Size = 0;
 let lastWebmSize = 0;
+let micAudioElement = null;
+let micAudioUrl = null;
+let tabAudioEnabled = true;
+let micAudioEnabled = true;
 
 // Mic monitoring
 const MIC_BAR_COUNT = 20;
@@ -141,7 +148,7 @@ function showIdleState() {
   previewArea.classList.remove('recording');
   stopTimer();
   stopPlayheadTracker();
-  captureTabPreview();
+  startTabPreviewLoop();
 }
 
 function showRecordingState() {
@@ -152,10 +159,11 @@ function showRecordingState() {
   processingOverlay.style.display = 'none';
   countdownOverlay.style.display = 'none';
   startTimer();
-  captureTabPreview();
+  startTabPreviewLoop();
 }
 
 function showProcessingState() {
+  stopTabPreviewLoop();
   recordBtn.classList.remove('recording');
   recordingOverlay.style.display = 'none';
   previewArea.classList.remove('recording');
@@ -167,6 +175,7 @@ function showProcessingState() {
 }
 
 async function showDoneState(state) {
+  stopTabPreviewLoop();
   stopTimer();
   durationText.textContent = state.duration ? fmtDur(state.duration) : '';
 
@@ -178,6 +187,21 @@ async function showDoneState(state) {
     });
     gifOpts.style.display = 'none';
     videoInfo.style.display = '';
+  }
+
+  // Audio controls
+  const hasTabAudio = state.hasTabAudio || false;
+  const hasMic = state.hasMic || false;
+  if (hasTabAudio || hasMic) {
+    audioControls.style.display = '';
+    toggleTabAudio.style.display = hasTabAudio ? '' : 'none';
+    toggleMicAudio.style.display = hasMic ? '' : 'none';
+    tabAudioEnabled = true;
+    micAudioEnabled = true;
+    toggleTabAudio.classList.add('active'); toggleTabAudio.classList.remove('muted');
+    toggleMicAudio.classList.add('active'); toggleMicAudio.classList.remove('muted');
+  } else {
+    audioControls.style.display = 'none';
   }
 
   updateSaveButton();
@@ -234,16 +258,41 @@ function updateSaveButton() {
 
 // ─── Tab Screenshot ───
 
+let tabPreviewRunning = false;
+const previewBuffer = new Image();
+
 async function captureTabPreview() {
   try {
-    const url = await chrome.tabs.captureVisibleTab(null, { format: 'jpeg', quality: 70 });
-    tabScreenshot.src = url;
+    const url = await chrome.tabs.captureVisibleTab(null, { format: 'jpeg', quality: 50 });
+    await new Promise((resolve, reject) => {
+      previewBuffer.onload = resolve;
+      previewBuffer.onerror = reject;
+      previewBuffer.src = url;
+    });
+    tabScreenshot.src = previewBuffer.src;
     tabScreenshot.style.display = '';
     previewPlaceholder.style.display = 'none';
   } catch (e) {
-    tabScreenshot.style.display = 'none';
-    previewPlaceholder.style.display = '';
+    // During live loop, silently skip failed frames
+    if (!tabPreviewRunning) {
+      tabScreenshot.style.display = 'none';
+      previewPlaceholder.style.display = '';
+    }
   }
+}
+
+function startTabPreviewLoop() {
+  stopTabPreviewLoop();
+  tabPreviewRunning = true;
+  (async function tick() {
+    if (!tabPreviewRunning) return;
+    await captureTabPreview();
+    if (tabPreviewRunning) requestAnimationFrame(tick);
+  })();
+}
+
+function stopTabPreviewLoop() {
+  tabPreviewRunning = false;
 }
 
 // ─── Video / GIF Preview ───
@@ -302,9 +351,30 @@ async function loadVideoPreview() {
       }
     } catch (e) { doneWebcam.style.display = 'none'; }
 
+    // Load mic audio as separate element for independent playback
+    try {
+      const micBlob = await TalkoverDB.get('mic');
+      if (micBlob) {
+        if (micAudioUrl) URL.revokeObjectURL(micAudioUrl);
+        micAudioUrl = URL.createObjectURL(micBlob);
+        if (!micAudioElement) micAudioElement = new Audio();
+        micAudioElement.src = micAudioUrl;
+        micAudioElement.loop = true;
+        micAudioElement.volume = micAudioEnabled ? 1 : 0;
+      }
+    } catch (e) { console.warn('Mic audio load failed:', e); }
+
+    // Unmute preview if tab audio exists
+    previewVideo.muted = !tabAudioEnabled;
+
     updateTrimUI();
     previewVideo.currentTime = trimStart * videoDuration;
     previewVideo.play().catch(() => {});
+    // Sync mic audio playback with video
+    if (micAudioElement && micAudioElement.src) {
+      micAudioElement.currentTime = previewVideo.currentTime;
+      micAudioElement.play().catch(() => {});
+    }
     startPlayheadTracker();
   } catch (e) { console.warn('Video preview failed:', e); }
 }
@@ -736,6 +806,7 @@ function startPlayheadTracker() {
       if (previewVideo.currentTime >= trimEnd * videoDuration) {
         previewVideo.currentTime = trimStart * videoDuration;
         if (doneWebcam.src) doneWebcam.currentTime = trimStart * videoDuration;
+        if (micAudioElement) micAudioElement.currentTime = trimStart * videoDuration;
       }
     }
     playheadRAF = requestAnimationFrame(tick);
@@ -768,7 +839,6 @@ function syncSettings(s) {
   $$('#fpsGroup .opt-pill').forEach(p => p.classList.toggle('active', p.dataset.value === String(s.fps)));
   $$('#scaleGroup .opt-pill').forEach(p => p.classList.toggle('active', p.dataset.value === String(s.scale)));
   $$('#qualityGroup .opt-pill').forEach(p => p.classList.toggle('active', p.dataset.value === s.quality));
-  $('#showCursor').checked = s.showCursor;
   $('#loopGif').checked = s.loop;
   $('#audioEnabled').checked = s.audioEnabled;
   $('#webcamEnabled').checked = s.webcamEnabled;
@@ -822,15 +892,32 @@ function updateSetting(key, value) {
 
 // ─── Video Save ───
 
+async function loadVideoSegments() {
+  const segments = [];
+  const segCount = await TalkoverDB.get('video-seg-count');
+  if (segCount && segCount > 1) {
+    for (let i = 0; i < segCount; i++) {
+      const seg = await TalkoverDB.get(`video-seg-${i}`);
+      if (seg) segments.push(seg);
+    }
+  }
+  if (segments.length === 0) {
+    const blob = await TalkoverDB.get('video');
+    if (blob) segments.push(blob);
+  }
+  return segments;
+}
+
 async function handleVideoSave(format) {
-  const blob = await TalkoverDB.get('video');
-  if (!blob) return;
+  const segments = await loadVideoSegments();
+  if (segments.length === 0) return;
   const wcBlob = await TalkoverDB.get('webcam');
   const hasTrim = trimStart > 0 || trimEnd < 1;
+  const isMultiSegment = segments.length > 1;
 
-  // Fast path: WebM with no trim and no webcam → direct download
-  if (format === 'webm' && !wcBlob && !hasTrim) {
-    triggerDownload(blob, `talkover-${ts()}.webm`);
+  // Fast path: WebM with single segment, no trim, no webcam → direct download
+  if (format === 'webm' && !wcBlob && !hasTrim && !isMultiSegment) {
+    triggerDownload(segments[0], `talkover-${ts()}.webm`);
     return;
   }
 
@@ -846,10 +933,10 @@ async function handleVideoSave(format) {
     progressFill.style.width = '0%';
     progressLabel.textContent = '0%';
 
-    const exported = await exportVideo(blob, wcBlob, (pct) => {
+    const exported = await exportVideo(segments, wcBlob, (pct) => {
       progressFill.style.width = pct + '%';
       progressLabel.textContent = pct + '%';
-    }, format);
+    }, format, tabAudioEnabled, micAudioEnabled);
 
     // Cache actual size so the button shows it on future views
     if (format === 'mp4') lastMp4Size = exported.size;
@@ -916,9 +1003,6 @@ function setupListeners() {
       msg('start-recording');
     }
   });
-
-  // Cursor toggle
-  $('#showCursor').addEventListener('change', (e) => updateSetting('showCursor', e.target.checked));
 
   // ── Audio toggle ──
   $('#audioEnabled').addEventListener('change', async (e) => {
@@ -1073,6 +1157,20 @@ function setupListeners() {
   saveBtnMp4.addEventListener('click', () => handleVideoSave('mp4'));
   saveBtnWebm.addEventListener('click', () => handleVideoSave('webm'));
 
+  // Audio preview toggles
+  toggleTabAudio.addEventListener('click', () => {
+    tabAudioEnabled = !tabAudioEnabled;
+    toggleTabAudio.classList.toggle('active', tabAudioEnabled);
+    toggleTabAudio.classList.toggle('muted', !tabAudioEnabled);
+    previewVideo.muted = !tabAudioEnabled;
+  });
+  toggleMicAudio.addEventListener('click', () => {
+    micAudioEnabled = !micAudioEnabled;
+    toggleMicAudio.classList.toggle('active', micAudioEnabled);
+    toggleMicAudio.classList.toggle('muted', !micAudioEnabled);
+    if (micAudioElement) micAudioElement.volume = micAudioEnabled ? 1 : 0;
+  });
+
   // Preview VID / GIF toggle
   $$('.mode-pill').forEach(tab => {
     tab.addEventListener('click', () => {
@@ -1089,8 +1187,11 @@ function setupListeners() {
     if (videoObjectUrl) { URL.revokeObjectURL(videoObjectUrl); videoObjectUrl = null; }
     if (gifObjectUrl) { URL.revokeObjectURL(gifObjectUrl); gifObjectUrl = null; }
     if (doneWebcamUrl) { URL.revokeObjectURL(doneWebcamUrl); doneWebcamUrl = null; }
+    if (micAudioElement) { micAudioElement.pause(); micAudioElement.src = ''; }
+    if (micAudioUrl) { URL.revokeObjectURL(micAudioUrl); micAudioUrl = null; }
     if (gifWorker) { gifWorker.terminate(); gifWorker = null; }
     previewVideo.src = '';
+    previewVideo.muted = true;
     previewGif.src = '';
     doneWebcam.src = '';
     doneWebcam.style.display = 'none';
@@ -1100,11 +1201,13 @@ function setupListeners() {
     isGeneratingGif = false;
     trimStart = 0; trimEnd = 1; videoDuration = 0;
     lastMp4Size = 0; lastWebmSize = 0;
+    tabAudioEnabled = true; micAudioEnabled = true;
     stopPlayheadTracker();
     $$('.mode-pill').forEach(t => t.classList.toggle('active', t.dataset.tab === 'video'));
     $$('.format-opt').forEach(b => b.classList.toggle('active', b.dataset.format === 'gif'));
     gifOpts.style.display = '';
     videoInfo.style.display = 'none';
+    audioControls.style.display = 'none';
     videoSaveBtns.style.display = 'none';
     saveBtn.style.display = '';
     msg('clear');
@@ -1131,21 +1234,22 @@ function setupPillGroup(groupId, key, parse) {
 
 // ─── Video Export (trim + webcam compositing) ───
 
-async function exportVideo(videoBlob, webcamBlob, onProgress, outputFormat = 'webm') {
-  // Create elements DYNAMICALLY and append to DOM with off-screen positioning.
-  // The DOM #gifSourceVideo and #gifCanvas have display:none which breaks
-  // captureStream() in Chrome. Elements must be in the DOM (not display:none)
-  // for captureStream to produce correct frames.
+async function exportVideo(videoSegments, webcamBlob, onProgress, outputFormat = 'webm', includeTabAudio = true, includeMicAudio = true) {
   const offscreen = 'position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;';
+  const segUrls = [];
+  const cleanupItems = [];
 
+  // Load first segment to determine canvas dimensions
   const video = document.createElement('video');
   video.muted = true;
   video.playsInline = true;
   video.style.cssText = offscreen;
   document.body.appendChild(video);
+  cleanupItems.push(() => { if (video.parentNode) video.parentNode.removeChild(video); });
 
-  const url = URL.createObjectURL(videoBlob);
-  video.src = url;
+  const firstUrl = URL.createObjectURL(videoSegments[0]);
+  segUrls.push(firstUrl);
+  video.src = firstUrl;
   await new Promise(r => { video.onloadeddata = r; video.load(); });
   if (video.readyState < 2) await new Promise(r => { video.oncanplay = r; });
 
@@ -1161,28 +1265,56 @@ async function exportVideo(videoBlob, webcamBlob, onProgress, outputFormat = 'we
     wcVideo.src = wcUrl;
     await new Promise(r => { wcVideo.onloadeddata = r; wcVideo.load(); });
     if (wcVideo.readyState < 2) await new Promise(r => { wcVideo.oncanplay = r; });
+    cleanupItems.push(() => { URL.revokeObjectURL(wcUrl); if (wcVideo.parentNode) wcVideo.parentNode.removeChild(wcVideo); });
   }
 
-  // Create canvas and append to DOM (NOT display:none — captureStream needs it)
+  // Canvas for drawing
   const canvas = document.createElement('canvas');
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
   canvas.style.cssText = offscreen;
   document.body.appendChild(canvas);
   const ctx = canvas.getContext('2d');
+  cleanupItems.push(() => { if (canvas.parentNode) canvas.parentNode.removeChild(canvas); });
 
-  console.log(`[Talkover] Export: canvas=${canvas.width}x${canvas.height}, video=${video.videoWidth}x${video.videoHeight}`);
+  console.log(`[Talkover] Export: canvas=${canvas.width}x${canvas.height}, segments=${videoSegments.length}`);
 
   const canvasStream = canvas.captureStream(30);
 
-  // Preserve audio in export by capturing from source video
+  // Audio: mic from separate blob (tab audio handled per-segment via captureStream)
+  let micExportAudio = null, micExportUrl = null, exportAudioCtx = null;
   let hasAudio = false;
-  try {
-    const sourceStream = video.captureStream();
-    const audioTracks = sourceStream.getAudioTracks();
-    audioTracks.forEach(t => canvasStream.addTrack(t));
-    hasAudio = audioTracks.length > 0;
-  } catch (e) { console.warn('Audio capture for export unavailable:', e); }
+
+  // For single-segment, capture tab audio from the video directly
+  if (videoSegments.length === 1 && includeTabAudio) {
+    try {
+      const sourceStream = video.captureStream();
+      const tabTracks = sourceStream.getAudioTracks();
+      tabTracks.forEach(t => canvasStream.addTrack(t));
+      if (tabTracks.length > 0) hasAudio = true;
+    } catch (e) { console.warn('Tab audio capture unavailable:', e); }
+  }
+  // For multi-segment, tab audio from individual segments won't work with captureStream
+  // because we swap the video src. Only mic audio survives across segments.
+
+  if (includeMicAudio) {
+    try {
+      const micBlob = await TalkoverDB.get('mic');
+      if (micBlob) {
+        micExportAudio = document.createElement('audio');
+        micExportAudio.muted = true;
+        micExportAudio.style.cssText = offscreen;
+        document.body.appendChild(micExportAudio);
+        micExportUrl = URL.createObjectURL(micBlob);
+        micExportAudio.src = micExportUrl;
+        await new Promise(r => { micExportAudio.onloadeddata = r; micExportAudio.load(); });
+        const micSourceStream = micExportAudio.captureStream();
+        micSourceStream.getAudioTracks().forEach(t => canvasStream.addTrack(t));
+        hasAudio = true;
+        cleanupItems.push(() => { URL.revokeObjectURL(micExportUrl); if (micExportAudio.parentNode) micExportAudio.parentNode.removeChild(micExportAudio); });
+      }
+    } catch (e) { console.warn('Mic audio for export unavailable:', e); }
+  }
 
   let mime;
   if (outputFormat === 'mp4' && mp4Supported) {
@@ -1197,52 +1329,131 @@ async function exportVideo(videoBlob, webcamBlob, onProgress, outputFormat = 'we
   const chunks = [];
   rec.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
 
-  const startSec = trimStart * videoDuration;
-  const endSec = trimEnd * videoDuration;
-  video.currentTime = startSec;
-  if (wcVideo) wcVideo.currentTime = startSec;
-  await new Promise(r => { video.onseeked = r; setTimeout(r, 2000); });
-  if (wcVideo) await new Promise(r => { wcVideo.onseeked = r; setTimeout(r, 2000); });
-
   const settings = currentState?.settings || {};
   const pos = settings.webcamPosition || 'BR';
   const shape = settings.webcamShape || 'rect';
 
-  function cleanupExportElements() {
-    URL.revokeObjectURL(url);
-    if (wcUrl) URL.revokeObjectURL(wcUrl);
-    if (video.parentNode) video.parentNode.removeChild(video);
-    if (wcVideo && wcVideo.parentNode) wcVideo.parentNode.removeChild(wcVideo);
-    if (canvas.parentNode) canvas.parentNode.removeChild(canvas);
+  // Calculate total duration across all segments for progress tracking
+  const totalDuration = videoDuration > 0 ? videoDuration : (currentState?.duration || 0);
+  const startSec = trimStart * totalDuration;
+  const endSec = trimEnd * totalDuration;
+  const clipDuration = endSec - startSec;
+
+  function cleanupAll() {
+    segUrls.forEach(u => URL.revokeObjectURL(u));
+    cleanupItems.forEach(fn => fn());
+    if (exportAudioCtx) exportAudioCtx.close().catch(() => {});
   }
+
+  // Compute segment boundaries (cumulative durations)
+  const segDurations = [];
+  for (let i = 0; i < videoSegments.length; i++) {
+    if (i === 0) {
+      // First segment is already loaded
+      let dur = video.duration;
+      if (!isFinite(dur) || dur <= 0) dur = totalDuration / videoSegments.length;
+      segDurations.push(dur);
+    } else {
+      // Probe duration by briefly loading
+      const tempVid = document.createElement('video');
+      tempVid.muted = true;
+      const tempUrl = URL.createObjectURL(videoSegments[i]);
+      segUrls.push(tempUrl);
+      tempVid.src = tempUrl;
+      await new Promise(r => { tempVid.onloadedmetadata = r; setTimeout(r, 2000); });
+      let dur = tempVid.duration;
+      if (!isFinite(dur) || dur <= 0) dur = totalDuration / videoSegments.length;
+      segDurations.push(dur);
+      tempVid.src = '';
+    }
+  }
+
+  // Build cumulative time map
+  const segStarts = [0];
+  for (let i = 1; i < segDurations.length; i++) {
+    segStarts.push(segStarts[i - 1] + segDurations[i - 1]);
+  }
+  const computedTotal = segStarts[segStarts.length - 1] + segDurations[segDurations.length - 1];
+
+  // Find which segment to start in based on trim
+  let currentSegIdx = 0;
+  let segLocalTime = startSec;
+  for (let i = 0; i < segStarts.length; i++) {
+    if (startSec >= segStarts[i] && (i === segStarts.length - 1 || startSec < segStarts[i + 1])) {
+      currentSegIdx = i;
+      segLocalTime = startSec - segStarts[i];
+      break;
+    }
+  }
+
+  // Load starting segment
+  async function loadSegment(idx) {
+    const segUrl = segUrls[idx] || URL.createObjectURL(videoSegments[idx]);
+    if (!segUrls[idx]) segUrls.push(segUrl);
+    video.src = segUrl;
+    await new Promise(r => { video.onloadeddata = r; video.load(); });
+    if (video.readyState < 2) await new Promise(r => { video.oncanplay = r; });
+    video.currentTime = 0;
+    await new Promise(r => { video.onseeked = r; setTimeout(r, 1000); });
+  }
+
+  if (currentSegIdx > 0) await loadSegment(currentSegIdx);
+  video.currentTime = segLocalTime;
+  if (wcVideo) wcVideo.currentTime = startSec;
+  if (micExportAudio) micExportAudio.currentTime = startSec;
+  await new Promise(r => { video.onseeked = r; setTimeout(r, 2000); });
+  if (wcVideo) await new Promise(r => { wcVideo.onseeked = r; setTimeout(r, 2000); });
 
   return new Promise((resolve, reject) => {
     rec.onstop = () => {
-      cleanupExportElements();
+      cleanupAll();
       resolve(new Blob(chunks, { type: mime }));
     };
     rec.onerror = (e) => {
-      cleanupExportElements();
+      cleanupAll();
       reject(e);
     };
     rec.start(100);
     video.play();
     if (wcVideo) wcVideo.play().catch(() => {});
-    const clipDuration = endSec - startSec;
+    if (micExportAudio) micExportAudio.play().catch(() => {});
+
     let lastPct = -1;
+    let switching = false;
+
     (function draw() {
-      if (video.currentTime >= endSec || video.ended) {
+      if (switching) { requestAnimationFrame(draw); return; }
+
+      // Calculate global time position
+      const globalTime = segStarts[currentSegIdx] + video.currentTime;
+
+      // Check if we've passed the trim end
+      if (globalTime >= endSec || (video.ended && currentSegIdx >= videoSegments.length - 1)) {
         video.pause();
         if (wcVideo) wcVideo.pause();
+        if (micExportAudio) micExportAudio.pause();
         rec.stop();
         return;
       }
+
+      // Check if current segment ended and there's a next one
+      if (video.ended && currentSegIdx < videoSegments.length - 1) {
+        switching = true;
+        currentSegIdx++;
+        loadSegment(currentSegIdx).then(() => {
+          video.play();
+          switching = false;
+        });
+        requestAnimationFrame(draw);
+        return;
+      }
+
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       if (wcVideo && wcVideo.readyState >= 2) {
         drawWebcamPIP(ctx, wcVideo, canvas.width, canvas.height, pos, shape);
       }
       if (onProgress && clipDuration > 0) {
-        const pct = Math.min(99, Math.round(((video.currentTime - startSec) / clipDuration) * 100));
+        const pct = Math.min(99, Math.round(((globalTime - startSec) / clipDuration) * 100));
         if (pct !== lastPct) { lastPct = pct; onProgress(pct); }
       }
       requestAnimationFrame(draw);

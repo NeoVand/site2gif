@@ -140,14 +140,14 @@ body {
 /* Countdown overlay */
 .countdown-overlay {
   position: absolute; inset: 0;
-  background: rgba(14,14,20,0.80);
+  background: rgba(14,14,20,0.38);
   display: flex; align-items: center; justify-content: center;
   z-index: 6;
 }
 .countdown-num {
   font-size: 96px; font-weight: 800; line-height: 1;
   color: white;
-  text-shadow: 0 0 40px var(--accent-glow), 0 2px 12px rgba(0,0,0,0.5);
+  text-shadow: 0 0 50px var(--accent-glow), 0 2px 16px rgba(0,0,0,0.8), 0 0 80px rgba(0,0,0,0.4);
   animation: cd-pop 0.45s cubic-bezier(.22,.68,.31,1.15) forwards;
 }
 .countdown-num.fade-out {
@@ -382,6 +382,23 @@ kbd {
   position: relative; border-radius: var(--r);
   overflow: hidden; background: var(--s1);
   border: 1px solid var(--border);
+}
+
+/* Audio controls in done preview */
+.audio-controls {
+  position: absolute; bottom: 8px; left: 8px;
+  display: flex; gap: 3px; z-index: 4;
+}
+.audio-toggle {
+  width: 28px; height: 28px; border-radius: 6px; border: none;
+  background: rgba(0,0,0,0.55); backdrop-filter: blur(8px);
+  color: var(--accent); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .15s; padding: 0;
+}
+.audio-toggle:hover { background: rgba(0,0,0,0.75); }
+.audio-toggle.muted {
+  color: rgba(255,255,255,0.25);
 }
 
 .preview-modes {
