@@ -2,195 +2,208 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="popup.css">
   <title>site2gif</title>
 </head>
 <body>
   <div class="app">
-    <!-- Header -->
-    <header class="header">
-      <div class="logo">
-        <span class="logo-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+
+    <!-- ═══ CAPTURE VIEW ═══ -->
+    <div class="view" id="viewCapture">
+      <div class="capture-preview" id="previewArea">
+        <div class="preview-placeholder" id="previewPlaceholder">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.2">
             <rect x="2" y="2" width="20" height="20" rx="3"/>
-            <circle cx="12" cy="12" r="3"/>
-            <path d="M2 8h20M2 16h20M8 2v20M16 2v20" opacity="0.3"/>
+            <polygon points="10,8 16,12 10,16"/>
           </svg>
-        </span>
-        <span class="logo-text">site2gif</span>
-      </div>
-      <button class="btn-icon" id="settingsToggle" title="Settings">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="3"/>
-          <path d="M12 1v4M12 19v4M4.2 4.2l2.8 2.8M17 17l2.8 2.8M1 12h4M19 12h4M4.2 19.8l2.8-2.8M17 7l2.8-2.8"/>
-        </svg>
-      </button>
-    </header>
-
-    <!-- Preview Area -->
-    <div class="preview-area" id="previewArea">
-      <div class="preview-placeholder" id="previewPlaceholder">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3">
-          <rect x="2" y="2" width="20" height="20" rx="3"/>
-          <polygon points="10,8 16,12 10,16"/>
-        </svg>
-        <p>Capturing this tab</p>
-      </div>
-      <img id="tabScreenshot" class="preview-media" style="display:none" alt="Tab preview">
-      <video id="previewVideo" class="preview-media" style="display:none" muted loop playsinline></video>
-      <img id="previewGif" class="preview-media" style="display:none" alt="GIF preview">
-
-      <!-- Recording overlay -->
-      <div class="recording-overlay" id="recordingOverlay" style="display:none">
-        <div class="rec-badge">
-          <span class="rec-dot"></span>
-          <span class="rec-label">REC</span>
-          <span class="rec-timer" id="recTimer">00:00</span>
+          <p>Ready to capture this tab</p>
+        </div>
+        <img id="tabScreenshot" class="preview-media" style="display:none" alt="">
+        <video id="webcamLive" class="webcam-pip pos-BR" style="display:none" muted playsinline autoplay></video>
+        <div class="processing-overlay" id="processingOverlay" style="display:none">
+          <div class="spinner"></div>
+        </div>
+        <div class="rec-overlay" id="recordingOverlay" style="display:none">
+          <div class="rec-pill">
+            <span class="rec-dot"></span>
+            <span class="rec-time" id="recTimer">00:00</span>
+          </div>
         </div>
       </div>
 
-      <!-- Preview tabs (video vs gif) -->
-      <div class="preview-tabs" id="previewTabs" style="display:none">
-        <button class="preview-tab active" data-tab="video">Video</button>
-        <button class="preview-tab" data-tab="gif">GIF</button>
-      </div>
-
-      <!-- Duration badge (after recording) -->
-      <div class="duration-badge" id="durationBadge" style="display:none">
-        <span id="durationText"></span>
-      </div>
-    </div>
-
-    <!-- Main Controls -->
-    <div class="controls" id="controlsSection">
-      <button class="btn-record" id="recordBtn">
-        <span class="btn-record-inner" id="recordBtnInner"></span>
-        <span class="btn-record-label" id="recordBtnLabel">Record</span>
-      </button>
-    </div>
-
-    <!-- Trim Timeline (appears after recording) -->
-    <div class="trim-section" id="trimSection" style="display:none">
-      <div class="trim-times">
-        <span class="trim-time" id="trimStartTime">0:00</span>
-        <span class="trim-selection-label" id="trimSelectionLabel">Full clip</span>
-        <span class="trim-time" id="trimEndTime">0:00</span>
-      </div>
-      <div class="trim-track" id="trimTrack">
-        <div class="trim-range" id="trimRange"></div>
-        <div class="trim-handle trim-handle-start" id="trimHandleStart"></div>
-        <div class="trim-handle trim-handle-end" id="trimHandleEnd"></div>
-        <div class="trim-playhead" id="trimPlayhead"></div>
-      </div>
-    </div>
-
-    <!-- Progress Bar (GIF generation) -->
-    <div class="progress-section" id="progressSection" style="display:none">
-      <div class="progress-bar">
-        <div class="progress-fill" id="progressFill"></div>
-      </div>
-      <div class="progress-label" id="progressLabel">Processing...</div>
-    </div>
-
-    <!-- Download Section -->
-    <div class="download-section" id="downloadSection" style="display:none">
-      <button class="btn-save btn-save-gif" id="saveGif">
-        <div class="btn-save-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-            <polyline points="7 10 12 15 17 10"/>
-            <line x1="12" y1="15" x2="12" y2="3"/>
-          </svg>
-        </div>
-        <div class="btn-save-text">
-          <strong id="gifBtnText">Save as GIF</strong>
-          <small id="gifSizeText">Click to generate &amp; save</small>
-        </div>
+      <button class="record-btn" id="recordBtn">
+        <span class="record-btn-dot"></span>
       </button>
 
-      <button class="btn-save btn-save-video" id="saveVideo">
-        <div class="btn-save-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-            <polyline points="7 10 12 15 17 10"/>
-            <line x1="12" y1="15" x2="12" y2="3"/>
-          </svg>
-        </div>
-        <div class="btn-save-text">
-          <strong>Save as Video</strong>
-          <small id="videoSizeText"></small>
-        </div>
-      </button>
-
-      <button class="btn-new" id="newRecording">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polyline points="1 4 1 10 7 10"/>
-          <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
-        </svg>
-        New Recording
-      </button>
-    </div>
-
-    <!-- Settings Panel -->
-    <div class="settings-panel" id="settingsPanel" style="display:none">
-      <div class="setting-group">
-        <label class="setting-label">GIF Frame Rate</label>
-        <div class="pill-group" id="fpsGroup">
-          <button class="pill" data-value="5">5</button>
-          <button class="pill active" data-value="10">10</button>
-          <button class="pill" data-value="15">15</button>
-          <button class="pill" data-value="24">24</button>
-          <button class="pill" data-value="30">30</button>
-        </div>
-      </div>
-
-      <div class="setting-group">
-        <label class="setting-label">Scale</label>
-        <div class="pill-group" id="scaleGroup">
-          <button class="pill active" data-value="1">100%</button>
-          <button class="pill" data-value="0.75">75%</button>
-          <button class="pill" data-value="0.5">50%</button>
-          <button class="pill" data-value="0.25">25%</button>
-        </div>
-      </div>
-
-      <div class="setting-group">
-        <label class="setting-label">Quality</label>
-        <div class="pill-group" id="qualityGroup">
-          <button class="pill" data-value="low">Low</button>
-          <button class="pill active" data-value="medium">Med</button>
-          <button class="pill" data-value="high">High</button>
-        </div>
-      </div>
-
-      <div class="setting-row">
-        <label class="setting-label">Show Cursor</label>
-        <label class="toggle">
+      <!-- Option toggles row -->
+      <div class="capture-opts">
+        <label class="opt-switch">
           <input type="checkbox" id="showCursor" checked>
-          <span class="toggle-slider"></span>
+          <span class="sw"></span>
+          <span>Cursor</span>
+        </label>
+        <label class="opt-switch">
+          <input type="checkbox" id="audioEnabled">
+          <span class="sw"></span>
+          <span>Audio</span>
+        </label>
+        <label class="opt-switch">
+          <input type="checkbox" id="webcamEnabled">
+          <span class="sw"></span>
+          <span>Webcam</span>
         </label>
       </div>
 
-      <div class="setting-row">
-        <label class="setting-label">Loop GIF</label>
-        <label class="toggle">
-          <input type="checkbox" id="loopGif" checked>
-          <span class="toggle-slider"></span>
-        </label>
+      <!-- Permission hints (shared row so both fit on one line) -->
+      <div class="perm-hints-row" id="permHintsRow" style="display:none">
+        <div class="perm-hint" id="micPermHint">Grant mic access</div>
+        <div class="perm-hint" id="camPermHint">Grant camera access</div>
+      </div>
+
+      <!-- Audio sub-panel -->
+      <div class="expand-panel" id="audioPanel" style="display:none">
+        <div class="panel-row">
+          <span class="panel-label">Mic</span>
+          <select id="micSelect" class="dev-select mic-half">
+            <option value="">None</option>
+          </select>
+          <div class="mic-level" id="micLevel"></div>
+        </div>
+      </div>
+
+      <!-- Webcam sub-panel -->
+      <div class="expand-panel" id="webcamPanel" style="display:none">
+        <div class="panel-row">
+          <span class="panel-label">Camera</span>
+          <select id="webcamSelect" class="dev-select">
+            <option value="">Select...</option>
+          </select>
+        </div>
+        <div class="panel-row">
+          <span class="panel-label">Position</span>
+          <div class="pos-grid">
+            <button class="pos-dot" data-pos="TL" title="Top left"></button>
+            <button class="pos-dot" data-pos="TR" title="Top right"></button>
+            <button class="pos-dot" data-pos="BL" title="Bottom left"></button>
+            <button class="pos-dot active" data-pos="BR" title="Bottom right"></button>
+          </div>
+          <span class="panel-label" style="margin-left:auto">Shape</span>
+          <div class="shape-btns" id="shapeGroup">
+            <button class="shape-btn active" data-value="rect" title="Rectangle">
+              <svg width="18" height="13" viewBox="0 0 18 13"><rect x="1" y="1" width="16" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+            </button>
+            <button class="shape-btn" data-value="square" title="Square">
+              <svg width="14" height="14" viewBox="0 0 14 14"><rect x="1" y="1" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+            </button>
+            <button class="shape-btn" data-value="circle" title="Circle">
+              <svg width="14" height="14" viewBox="0 0 14 14"><circle cx="7" cy="7" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="capture-footer">
+        <span class="keys"><kbd>Alt</kbd><kbd>Shift</kbd><kbd>R</kbd></span>
       </div>
     </div>
 
-    <!-- Hidden elements for GIF processing (done in popup, not offscreen) -->
+    <!-- ═══ DONE VIEW ═══ -->
+    <div class="view" id="viewDone" style="display:none">
+
+      <div class="done-topbar">
+        <button class="new-btn" id="newRecording">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="1 4 1 10 7 10"/>
+            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+          </svg>
+          New
+        </button>
+        <span class="done-logo">site2gif</span>
+        <span class="done-dur"><span id="durationText"></span></span>
+      </div>
+
+      <div class="done-preview">
+        <video id="previewVideo" class="preview-media" muted loop playsinline></video>
+        <video id="doneWebcam" class="webcam-pip pos-BR" style="display:none" muted loop playsinline></video>
+        <img id="previewGif" class="preview-media" style="display:none" alt="">
+        <div class="preview-modes" id="previewTabs" style="display:none">
+          <button class="mode-pill active" data-tab="video">VID</button>
+          <button class="mode-pill" data-tab="gif">GIF</button>
+        </div>
+      </div>
+
+      <div class="trim" id="trimSection">
+        <div class="trim-track" id="trimTrack">
+          <div class="trim-range" id="trimRange"></div>
+          <div class="trim-handle" id="trimHandleStart"></div>
+          <div class="trim-handle" id="trimHandleEnd"></div>
+          <div class="trim-playhead" id="trimPlayhead"></div>
+        </div>
+        <div class="trim-meta">
+          <span class="trim-time" id="trimStartTime">0.0s</span>
+          <span class="trim-sel" id="trimSelectionLabel">Full clip</span>
+          <span class="trim-time" id="trimEndTime">0.0s</span>
+        </div>
+      </div>
+
+      <div class="export">
+        <div class="format-switch">
+          <button class="format-opt active" data-format="gif">GIF</button>
+          <button class="format-opt" data-format="video">Video</button>
+        </div>
+
+        <div class="gif-opts" id="gifOpts">
+          <div class="opt-row">
+            <span class="opt-label">FPS</span>
+            <div class="opt-pills" id="fpsGroup">
+              <button class="opt-pill" data-value="5">5</button>
+              <button class="opt-pill active" data-value="10">10</button>
+              <button class="opt-pill" data-value="15">15</button>
+              <button class="opt-pill" data-value="24">24</button>
+              <button class="opt-pill" data-value="30">30</button>
+            </div>
+          </div>
+          <div class="opt-row">
+            <span class="opt-label">Scale</span>
+            <div class="opt-pills" id="scaleGroup">
+              <button class="opt-pill active" data-value="1">1x</button>
+              <button class="opt-pill" data-value="0.75">.75</button>
+              <button class="opt-pill" data-value="0.5">.5x</button>
+              <button class="opt-pill" data-value="0.25">.25</button>
+            </div>
+          </div>
+          <div class="opt-row">
+            <span class="opt-label">Quality</span>
+            <div class="opt-pills" id="qualityGroup">
+              <button class="opt-pill" data-value="low">Lo</button>
+              <button class="opt-pill active" data-value="medium">Med</button>
+              <button class="opt-pill" data-value="high">Hi</button>
+            </div>
+            <label class="loop-chk">
+              <input type="checkbox" id="loopGif" checked>
+              <span>Loop</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="video-info" id="videoInfo" style="display:none">
+          <p class="video-note">Original quality WebM. Trim applied if set.</p>
+        </div>
+
+        <div class="gen-progress" id="progressSection" style="display:none">
+          <div class="gen-bar"><div class="gen-fill" id="progressFill"></div></div>
+          <span class="gen-pct" id="progressLabel">0%</span>
+        </div>
+
+        <button class="save-btn" id="saveBtn">
+          <span id="saveBtnText">Save GIF</span>
+          <span class="save-size" id="saveBtnSize"></span>
+        </button>
+      </div>
+    </div>
+
     <video id="gifSourceVideo" style="display:none" muted playsinline></video>
     <canvas id="gifCanvas" style="display:none"></canvas>
-
-    <!-- Footer -->
-    <footer class="footer">
-      <span class="shortcut-hint">
-        <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd> to toggle recording
-      </span>
-    </footer>
   </div>
 
   <script src="db.js"></script>
