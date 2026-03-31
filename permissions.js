@@ -1,4 +1,4 @@
-// site2gif — Permissions Page
+// Talkover — Permissions Page
 // Opened in a tab so getUserMedia can properly show the browser permission prompt.
 // Extension popups can't do this because the popup closes when the prompt appears.
 
@@ -33,9 +33,9 @@ async function requestAccess() {
       const constraints = type === 'audio' ? { audio: true } : { video: true };
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       stream.getTracks().forEach(t => t.stop());
-      console.log(`[site2gif-permissions] ${typeName} access granted`);
+      console.log(`[Talkover-permissions] ${typeName} access granted`);
     } catch (e) {
-      console.error(`[site2gif-permissions] ${typeName} access failed:`, e.name, e.message);
+      console.error(`[Talkover-permissions] ${typeName} access failed:`, e.name, e.message);
       status.className = 'status error';
 
       if (e.name === 'NotAllowedError') {
@@ -56,7 +56,7 @@ async function requestAccess() {
   // All permissions granted
   status.className = 'status success';
   status.textContent = '\u2713 Access granted!';
-  desc.textContent = 'You can now close this tab and click the site2gif icon to continue.';
+  desc.textContent = 'You can now close this tab and click the Talkover icon to continue.';
 
   // Notify the extension
   try {

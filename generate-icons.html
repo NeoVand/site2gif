@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html>
-<head><title>Generate site2gif icons</title></head>
+<head><title>Generate Talkover icons</title></head>
 <body>
-<h2>site2gif Icon Generator</h2>
+<h2>Talkover Icon Generator</h2>
 <p>Right-click each icon and "Save image as..." to the icons/ folder, or click the download links.</p>
 <div id="icons" style="display: flex; gap: 20px; align-items: end; margin: 20px;"></div>
 <script>
@@ -30,35 +30,78 @@ sizes.forEach(size => {
   ctx.closePath();
 
   const grad = ctx.createLinearGradient(0, 0, s, s);
-  grad.addColorStop(0, '#e94560');
-  grad.addColorStop(1, '#7c3aed');
+  grad.addColorStop(0, '#4f8efa');
+  grad.addColorStop(1, '#6c6cf1');
   ctx.fillStyle = grad;
   ctx.fill();
 
-  // Film strip perforations (subtle)
-  ctx.fillStyle = 'rgba(255,255,255,0.15)';
-  const perfSize = s * 0.06;
-  const perfGap = s * 0.14;
-  for (let y = s * 0.12; y < s * 0.9; y += perfGap) {
-    ctx.fillRect(s * 0.06, y, perfSize, perfSize);
-    ctx.fillRect(s - s * 0.06 - perfSize, y, perfSize, perfSize);
+  // Screen rectangle (representing the tab being recorded)
+  const screenX = s * 0.12;
+  const screenY = s * 0.18;
+  const screenW = s * 0.76;
+  const screenH = s * 0.52;
+  const screenR = s * 0.06;
+  ctx.beginPath();
+  ctx.moveTo(screenX + screenR, screenY);
+  ctx.lineTo(screenX + screenW - screenR, screenY);
+  ctx.quadraticCurveTo(screenX + screenW, screenY, screenX + screenW, screenY + screenR);
+  ctx.lineTo(screenX + screenW, screenY + screenH - screenR);
+  ctx.quadraticCurveTo(screenX + screenW, screenY + screenH, screenX + screenW - screenR, screenY + screenH);
+  ctx.lineTo(screenX + screenR, screenY + screenH);
+  ctx.quadraticCurveTo(screenX, screenY + screenH, screenX, screenY + screenH - screenR);
+  ctx.lineTo(screenX, screenY + screenR);
+  ctx.quadraticCurveTo(screenX, screenY, screenX + screenR, screenY);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(255,255,255,0.2)';
+  ctx.fill();
+
+  // Webcam circle (PIP in bottom-right of screen)
+  const camR = s * 0.12;
+  const camX = screenX + screenW - s * 0.08;
+  const camY = screenY + screenH - s * 0.04;
+  ctx.beginPath();
+  ctx.arc(camX, camY, camR, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  ctx.fill();
+
+  // Person silhouette in webcam circle
+  ctx.fillStyle = size >= 48 ? '#5b7ef7' : '#5b7ef7';
+  // Head
+  const headR = camR * 0.3;
+  ctx.beginPath();
+  ctx.arc(camX, camY - camR * 0.18, headR, 0, Math.PI * 2);
+  ctx.fill();
+  // Shoulders
+  ctx.beginPath();
+  ctx.ellipse(camX, camY + camR * 0.35, camR * 0.5, camR * 0.35, 0, Math.PI, 0);
+  ctx.fill();
+
+  // Speech lines (representing "talk over")
+  if (size >= 48) {
+    ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+    ctx.lineWidth = Math.max(1, s * 0.025);
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 3; i++) {
+      const lineX = s * 0.18 + i * s * 0.1;
+      const lineY = s * 0.82;
+      const lineW = s * 0.06;
+      ctx.beginPath();
+      ctx.moveTo(lineX, lineY);
+      ctx.lineTo(lineX + lineW, lineY);
+      ctx.stroke();
+    }
   }
 
-  // "GIF" text
-  ctx.fillStyle = 'white';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.font = `bold ${s * 0.32}px -apple-system, sans-serif`;
-  ctx.fillText('GIF', s / 2, s / 2 + s * 0.02);
-
-  // Small record dot
+  // Record dot (top-right)
+  const dotR = Math.max(1, s * 0.06);
   ctx.beginPath();
-  ctx.arc(s * 0.78, s * 0.22, s * 0.08, 0, Math.PI * 2);
+  ctx.arc(s * 0.82, s * 0.18, dotR + Math.max(0.5, s * 0.015), 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(s * 0.82, s * 0.18, dotR, 0, Math.PI * 2);
   ctx.fillStyle = '#ff6b6b';
   ctx.fill();
-  ctx.strokeStyle = 'white';
-  ctx.lineWidth = s * 0.02;
-  ctx.stroke();
 
   const container = document.createElement('div');
   container.style.textAlign = 'center';

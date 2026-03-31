@@ -1,4 +1,4 @@
-# site2gif
+# Talkover
 
 Record your browser tab as a polished video with webcam overlay — or export as an animated GIF. One click to capture demos, tutorials, bug reports, and walkthroughs, right from your browser.
 
@@ -9,9 +9,9 @@ Record your browser tab as a polished video with webcam overlay — or export as
 ![Version](https://img.shields.io/badge/version-1.0.0-7c3aed)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
-## Why site2gif?
+## Why Talkover?
 
-Most screen recorders need accounts, cloud uploads, or desktop apps. site2gif is different:
+Most screen recorders need accounts, cloud uploads, or desktop apps. Talkover is different:
 
 - **Record + webcam in one click** — your face overlaid on your tab, tutorial-style
 - **No sign-up, no cloud** — recordings never leave your machine
@@ -76,7 +76,7 @@ _Coming soon._
 
 ## Usage
 
-1. Click the site2gif icon in your toolbar
+1. Click the Talkover icon in your toolbar
 2. Toggle **Webcam** and/or **Audio** if you want them
 3. Press the **Record** button (or `Alt+Shift+R`)
 4. Interact with your tab — everything is being captured
@@ -166,7 +166,7 @@ All encoding runs in a Web Worker with progress updates streamed back to the UI.
 
 ## Privacy
 
-site2gif does not collect, transmit, or store any personal data. All recordings exist only in your browser's local IndexedDB and are cleared when you start a new recording. No analytics, no telemetry, no network requests.
+Talkover does not collect, transmit, or store any personal data. All recordings exist only in your browser's local IndexedDB and are cleared when you start a new recording. No analytics, no telemetry, no network requests.
 
 ## Contributing
 

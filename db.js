@@ -1,8 +1,8 @@
-// site2gif — Shared IndexedDB for storing recording blobs
+// Talkover — Shared IndexedDB for storing recording blobs
 // Used by both offscreen.js (writer) and popup.js (reader)
 
-const Site2GifDB = (() => {
-  const DB_NAME = 'site2gif-store';
+const TalkoverDB = (() => {
+  const DB_NAME = 'talkover-store';
   const DB_VERSION = 1;
   const STORE = 'blobs';
 

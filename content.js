@@ -1,8 +1,8 @@
-// site2gif — Content Script (cursor overlay for tab capture)
+// Talkover — Content Script (cursor overlay for tab capture)
 
 (function () {
-  if (window.__site2gifCursor) return;
-  window.__site2gifCursor = true;
+  if (window.__talkoverCursor) return;
+  window.__talkoverCursor = true;
 
   let cursorEl = null;
   let isTracking = false;
@@ -19,7 +19,7 @@
     if (cursorEl) return;
 
     cursorEl = document.createElement('div');
-    cursorEl.id = 'site2gif-cursor-overlay';
+    cursorEl.id = 'talkover-cursor-overlay';
     cursorEl.style.cssText = [
       'position: fixed',
       'width: 24px',
@@ -36,7 +36,7 @@
 
     // Hide real cursor during recording
     styleEl = document.createElement('style');
-    styleEl.id = 'site2gif-cursor-style';
+    styleEl.id = 'talkover-cursor-style';
     styleEl.textContent = '';
 
     document.documentElement.appendChild(cursorEl);

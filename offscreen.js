@@ -1,11 +1,11 @@
-// site2gif — Offscreen Document
+// Talkover — Offscreen Document
 // Records tab capture with optional mic audio mixing.
 // Webcam is recorded as a SEPARATE stream and stored independently.
 // Webcam compositing happens in the popup (visible document) during export,
 // because canvas.captureStream() is broken in hidden/offscreen documents
 // (Chromium bugs #41270855, #41279417).
 
-console.log('[site2gif] Offscreen loaded — v2 (raw streams, no canvas compositing)');
+console.log('[Talkover] Offscreen loaded — v2 (raw streams, no canvas compositing)');
 
 let mediaRecorder = null;
 let recordedChunks = [];
@@ -82,7 +82,7 @@ async function startCapture(config) {
     // 4. Build recording stream — tab video + mixed audio (NO canvas compositing)
     const videoTracks = tabStream.getVideoTracks();
     const vSettings = videoTracks[0]?.getSettings();
-    console.log(`[site2gif] Tab requested: ${tabWidth}x${tabHeight}, captured: ${vSettings?.width}x${vSettings?.height}, webcam=${!!webcamStream}`);
+    console.log(`[Talkover] Tab requested: ${tabWidth}x${tabHeight}, captured: ${vSettings?.width}x${vSettings?.height}, webcam=${!!webcamStream}`);
     const audioTrack = mixAudio(tabStream, micStream);
 
     const recordStream = new MediaStream(videoTracks);
@@ -148,13 +148,13 @@ async function finalizeRecording() {
   const videoBlob = new Blob(recordedChunks, { type: mimeType });
   recordedChunks = [];
 
-  try { await Site2GifDB.put('video', videoBlob); } catch (e) { console.error('DB store failed:', e); }
+  try { await TalkoverDB.put('video', videoBlob); } catch (e) { console.error('DB store failed:', e); }
 
   // Store webcam recording separately
   if (webcamChunks.length > 0) {
     const wcBlob = new Blob(webcamChunks, { type: 'video/webm' });
     webcamChunks = [];
-    try { await Site2GifDB.put('webcam', wcBlob); } catch (e) { console.error('Webcam DB store failed:', e); }
+    try { await TalkoverDB.put('webcam', wcBlob); } catch (e) { console.error('Webcam DB store failed:', e); }
   }
 
   webcamRecorder = null;
@@ -180,5 +180,5 @@ async function cleanup() {
   stopAllStreams();
   recordedChunks = [];
   webcamChunks = [];
-  try { await Site2GifDB.clear(); } catch (e) {}
+  try { await TalkoverDB.clear(); } catch (e) {}
 }

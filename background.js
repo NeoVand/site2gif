@@ -1,4 +1,4 @@
-// site2gif — Background Service Worker
+// Talkover — Background Service Worker
 
 let state = {
   status: 'idle',

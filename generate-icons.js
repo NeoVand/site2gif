@@ -1,9 +1,7 @@
 #!/usr/bin/env node
-// Generate site2gif extension icons as PNG files
+// Generate Talkover extension icons as PNG files
 
 const { createCanvas } = (() => {
-  // Use OffscreenCanvas-compatible approach via built-in Node canvas alternative
-  // We'll write raw PNG bytes directly
   return { createCanvas: null };
 })();
 
@@ -44,7 +42,6 @@ function createPNG(width, height, drawFn) {
         for (let dx = 0; dx < w; dx++) {
           const px = x + dx;
           const py = y + dy;
-          // Check corners
           let inside = true;
           if (dx < radius && dy < radius) {
             inside = (dx - radius) ** 2 + (dy - radius) ** 2 <= radius ** 2;
@@ -66,6 +63,15 @@ function createPNG(width, height, drawFn) {
       for (let dy = -radius; dy <= radius; dy++) {
         for (let dx = -radius; dx <= radius; dx++) {
           if (dx * dx + dy * dy <= r2) {
+            this.setPixel(Math.round(cx + dx), Math.round(cy + dy), r, g, b, a);
+          }
+        }
+      }
+    },
+    fillEllipse(cx, cy, rx, ry, r, g, b, a = 255) {
+      for (let dy = -ry; dy <= ry; dy++) {
+        for (let dx = -rx; dx <= rx; dx++) {
+          if ((dx * dx) / (rx * rx) + (dy * dy) / (ry * ry) <= 1) {
             this.setPixel(Math.round(cx + dx), Math.round(cy + dy), r, g, b, a);
           }
         }
@@ -144,13 +150,14 @@ function createPNG(width, height, drawFn) {
 function drawIcon(ctx) {
   const s = ctx.width;
 
-  // Gradient background (approximate with vertical stripes)
+  // Gradient background (blue-purple, matching the Talkover save button gradient)
   for (let y = 0; y < s; y++) {
     for (let x = 0; x < s; x++) {
       const t = (x + y) / (2 * s);
-      const r = Math.round(233 + (124 - 233) * t);
-      const g = Math.round(69 + (58 - 69) * t);
-      const b = Math.round(96 + (237 - 96) * t);
+      // #4f8efa to #6c6cf1
+      const r = Math.round(79 + (108 - 79) * t);
+      const g = Math.round(142 + (108 - 142) * t);
+      const b = Math.round(250 + (241 - 250) * t);
       // Check rounded rect
       const radius = s * 0.2;
       let inside = true;
@@ -169,76 +176,42 @@ function drawIcon(ctx) {
     }
   }
 
-  // Film strip perforations
-  const perfSize = Math.max(1, Math.round(s * 0.06));
-  const perfGap = Math.round(s * 0.14);
-  for (let y = Math.round(s * 0.12); y < s * 0.9; y += perfGap) {
-    ctx.fillRect(Math.round(s * 0.06), y, perfSize, perfSize, 255, 255, 255, 40);
-    ctx.fillRect(Math.round(s - s * 0.06 - perfSize), y, perfSize, perfSize, 255, 255, 255, 40);
-  }
+  // Screen rectangle (representing the tab)
+  const screenX = Math.round(s * 0.12);
+  const screenY = Math.round(s * 0.18);
+  const screenW = Math.round(s * 0.76);
+  const screenH = Math.round(s * 0.52);
+  const screenR = Math.max(1, Math.round(s * 0.06));
+  ctx.fillRoundedRect(screenX, screenY, screenW, screenH, screenR, 255, 255, 255, 50);
 
-  // "GIF" text - simple bitmap font
+  // Webcam circle (PIP in bottom-right corner of screen)
+  const camR = Math.max(2, Math.round(s * 0.12));
+  const camX = Math.round(screenX + screenW - s * 0.08);
+  const camY = Math.round(screenY + screenH - s * 0.04);
+  ctx.fillCircle(camX, camY, camR, 255, 255, 255, 216);
+
+  // Person silhouette in webcam circle
+  const headR = Math.max(1, Math.round(camR * 0.3));
+  ctx.fillCircle(camX, Math.round(camY - camR * 0.18), headR, 91, 126, 247, 255);
+  ctx.fillEllipse(camX, Math.round(camY + camR * 0.35), Math.round(camR * 0.5), Math.round(camR * 0.35), 91, 126, 247, 255);
+
+  // Speech lines at bottom (the "talk over" element)
   if (s >= 48) {
-    drawText(ctx, 'GIF', s);
-  } else if (s >= 16) {
-    drawTextSmall(ctx, 'G', s);
+    const thick = Math.max(1, Math.round(s * 0.025));
+    for (let i = 0; i < 3; i++) {
+      const lineX = Math.round(s * 0.18 + i * s * 0.1);
+      const lineY = Math.round(s * 0.82);
+      const lineW = Math.round(s * 0.06);
+      ctx.fillRect(lineX, lineY, lineW, thick, 255, 255, 255, 178);
+    }
   }
 
-  // Record dot
-  const dotR = Math.max(1, Math.round(s * 0.08));
-  const dotX = Math.round(s * 0.78);
-  const dotY = Math.round(s * 0.22);
-  ctx.fillCircle(dotX, dotY, dotR + 1, 255, 255, 255, 200);
+  // Record dot (top-right)
+  const dotR = Math.max(1, Math.round(s * 0.06));
+  const dotX = Math.round(s * 0.82);
+  const dotY = Math.round(s * 0.18);
+  ctx.fillCircle(dotX, dotY, dotR + 1, 255, 255, 255, 128);
   ctx.fillCircle(dotX, dotY, dotR, 255, 107, 107, 255);
-}
-
-function drawText(ctx, text, s) {
-  // Simple pixel art letters for "GIF"
-  const fontSize = Math.round(s * 0.28);
-  const startX = Math.round(s * 0.18);
-  const startY = Math.round(s * 0.36);
-  const letterW = Math.round(fontSize * 0.7);
-  const gap = Math.round(fontSize * 0.15);
-  const thick = Math.max(1, Math.round(fontSize * 0.22));
-
-  let x = startX;
-
-  // G
-  ctx.fillRect(x + thick, startY, letterW - thick, thick, 255, 255, 255, 230); // top
-  ctx.fillRect(x, startY + thick, thick, fontSize - 2 * thick, 255, 255, 255, 230); // left
-  ctx.fillRect(x + thick, startY + fontSize - thick, letterW - thick, thick, 255, 255, 255, 230); // bottom
-  ctx.fillRect(x + letterW - thick, startY + Math.round(fontSize * 0.5), thick, Math.round(fontSize * 0.5) - thick, 255, 255, 255, 230); // right-bottom
-  ctx.fillRect(x + Math.round(letterW * 0.45), startY + Math.round(fontSize * 0.45), letterW - Math.round(letterW * 0.45), thick, 255, 255, 255, 230); // middle
-
-  x += letterW + gap;
-
-  // I
-  ctx.fillRect(x, startY, letterW, thick, 255, 255, 255, 230); // top
-  ctx.fillRect(x + Math.round((letterW - thick) / 2), startY + thick, thick, fontSize - 2 * thick, 255, 255, 255, 230); // middle
-  ctx.fillRect(x, startY + fontSize - thick, letterW, thick, 255, 255, 255, 230); // bottom
-
-  x += letterW + gap;
-
-  // F
-  ctx.fillRect(x, startY, letterW, thick, 255, 255, 255, 230); // top
-  ctx.fillRect(x, startY + thick, thick, fontSize - thick, 255, 255, 255, 230); // left
-  ctx.fillRect(x + thick, startY + Math.round(fontSize * 0.45), Math.round(letterW * 0.6), thick, 255, 255, 255, 230); // middle
-}
-
-function drawTextSmall(ctx, letter, s) {
-  // For 16x16, just draw a simple G
-  const cx = Math.round(s / 2);
-  const cy = Math.round(s / 2);
-  const r = Math.round(s * 0.28);
-  ctx.fillCircle(cx, cy, r + 1, 255, 255, 255, 200);
-  ctx.fillCircle(cx, cy, r - 1, 0, 0, 0, 0); // clear inside (won't work with alpha, so skip)
-  // Just draw a filled circle with the gradient showing through... simpler: draw a solid white "G" shape
-  const t = Math.max(1, Math.round(s * 0.15));
-  ctx.fillRect(cx - r, cy - r, r * 2, t, 255, 255, 255, 220); // top
-  ctx.fillRect(cx - r, cy - r, t, r * 2, 255, 255, 255, 220); // left
-  ctx.fillRect(cx - r, cy + r - t, r * 2, t, 255, 255, 255, 220); // bottom
-  ctx.fillRect(cx + r - t, cy, t, r, 255, 255, 255, 220); // right bottom
-  ctx.fillRect(cx, cy, r, t, 255, 255, 255, 220); // middle bar
 }
 
 // Generate icons

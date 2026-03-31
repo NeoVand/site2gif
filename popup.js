@@ -1,4 +1,4 @@
-// site2gif — Popup Controller
+// Talkover — Popup Controller
 // Polished UI with mic level monitor, proper permissions, audio/webcam controls.
 
 const $ = s => document.querySelector(s);
@@ -13,7 +13,10 @@ const previewPlaceholder = $('#previewPlaceholder');
 const tabScreenshot = $('#tabScreenshot');
 const webcamLive = $('#webcamLive');
 const processingOverlay = $('#processingOverlay');
+const processingLabel = processingOverlay?.querySelector('.processing-label');
 const recordingOverlay = $('#recordingOverlay');
+const countdownOverlay = $('#countdownOverlay');
+const countdownNum = $('#countdownNum');
 const recTimer = $('#recTimer');
 const recordBtn = $('#recordBtn');
 const audioPanel = $('#audioPanel');
@@ -43,12 +46,28 @@ const trimSelectionLabel = $('#trimSelectionLabel');
 const gifOpts = $('#gifOpts');
 const videoInfo = $('#videoInfo');
 const progressSection = $('#progressSection');
+const progressStage = $('#progressStage');
 const progressFill = $('#progressFill');
 const progressLabel = $('#progressLabel');
 const saveBtn = $('#saveBtn');
 const saveBtnText = $('#saveBtnText');
 const saveBtnSize = $('#saveBtnSize');
+const videoSaveBtns = $('#videoSaveBtns');
+const saveBtnMp4 = $('#saveBtnMp4');
+const saveBtnMp4Text = $('#saveBtnMp4Text');
+const saveBtnMp4Size = $('#saveBtnMp4Size');
+const saveBtnWebm = $('#saveBtnWebm');
+const saveBtnWebmText = $('#saveBtnWebmText');
+const saveBtnWebmSize = $('#saveBtnWebmSize');
+const videoNote = $('#videoNote');
 const newRecording = $('#newRecording');
+
+// ─── Capabilities ───
+
+const mp4Supported = typeof MediaRecorder !== 'undefined' &&
+  MediaRecorder.isTypeSupported('video/mp4;codecs=avc1');
+const mp4AudioSupported = typeof MediaRecorder !== 'undefined' &&
+  MediaRecorder.isTypeSupported('video/mp4;codecs=avc1,mp4a.40.2');
 
 // ─── State ───
 
@@ -67,6 +86,9 @@ let videoDuration = 0;
 let playheadRAF = null;
 let webcamPreviewStream = null;
 let doneWebcamUrl = null;
+let isCountingDown = false;
+let lastMp4Size = 0;
+let lastWebmSize = 0;
 
 // Mic monitoring
 const MIC_BAR_COUNT = 20;
@@ -83,7 +105,7 @@ async function init() {
   if (state) {
     currentState = state;
     syncSettings(state.settings);
-    try { if (await Site2GifDB.get('gif')) gifIsReady = true; } catch (e) {}
+    try { if (await TalkoverDB.get('gif')) gifIsReady = true; } catch (e) {}
     await render(state);
   }
   setupListeners();
@@ -112,8 +134,10 @@ async function render(state) {
 
 function showIdleState() {
   recordBtn.classList.remove('recording');
+  recordBtn.disabled = false;
   recordingOverlay.style.display = 'none';
   processingOverlay.style.display = 'none';
+  countdownOverlay.style.display = 'none';
   previewArea.classList.remove('recording');
   stopTimer();
   stopPlayheadTracker();
@@ -122,9 +146,11 @@ function showIdleState() {
 
 function showRecordingState() {
   recordBtn.classList.add('recording');
+  recordBtn.disabled = false;
   previewArea.classList.add('recording');
   recordingOverlay.style.display = '';
   processingOverlay.style.display = 'none';
+  countdownOverlay.style.display = 'none';
   startTimer();
   captureTabPreview();
 }
@@ -134,6 +160,7 @@ function showProcessingState() {
   recordingOverlay.style.display = 'none';
   previewArea.classList.remove('recording');
   processingOverlay.style.display = '';
+  if (processingLabel) processingLabel.textContent = 'Saving recording...';
   tabScreenshot.style.display = 'none';
   previewPlaceholder.style.display = 'none';
   stopTimer();
@@ -161,6 +188,8 @@ async function showDoneState(state) {
 
 function updateSaveButton() {
   if (selectedFormat === 'gif') {
+    saveBtn.style.display = '';
+    videoSaveBtns.style.display = 'none';
     saveBtn.classList.remove('video-mode');
     if (isGeneratingGif) {
       saveBtnText.textContent = 'Generating...';
@@ -169,17 +198,37 @@ function updateSaveButton() {
     } else if (gifIsReady) {
       saveBtnText.textContent = 'Save GIF';
       saveBtn.disabled = false;
-      Site2GifDB.get('gif').then(b => { if (b) saveBtnSize.textContent = fmtSize(b.size); }).catch(() => {});
+      TalkoverDB.get('gif').then(b => { if (b) saveBtnSize.textContent = fmtSize(b.size); }).catch(() => {});
     } else {
       saveBtnText.textContent = 'Save GIF';
       saveBtnSize.textContent = '';
       saveBtn.disabled = false;
     }
   } else {
-    saveBtn.classList.add('video-mode');
-    saveBtnText.textContent = 'Save Video';
-    saveBtnSize.textContent = fmtSize(currentState?.videoSize);
-    saveBtn.disabled = false;
+    const rawSize = currentState?.videoSize || 0;
+    const hasTrim = trimStart > 0 || trimEnd < 1;
+    const hasWebcam = currentState?.settings?.webcamEnabled;
+    // WebM direct download: no re-encoding, exact size known
+    const webmDirect = !hasTrim && !hasWebcam && rawSize > 0;
+
+    if (mp4Supported) {
+      saveBtn.style.display = 'none';
+      videoSaveBtns.style.display = '';
+      saveBtnMp4Text.textContent = 'Save MP4';
+      saveBtnMp4Size.textContent = lastMp4Size ? fmtSize(lastMp4Size) : '';
+      saveBtnMp4.disabled = false;
+      saveBtnWebmText.textContent = 'Save WebM';
+      saveBtnWebmSize.textContent = webmDirect ? fmtSize(rawSize) : (lastWebmSize ? fmtSize(lastWebmSize) : '');
+      saveBtnWebm.disabled = false;
+      if (videoNote) videoNote.textContent = 'MP4 works everywhere. WebM is the raw recording.';
+    } else {
+      saveBtn.style.display = '';
+      videoSaveBtns.style.display = 'none';
+      saveBtn.classList.add('video-mode');
+      saveBtnText.textContent = 'Save WebM';
+      saveBtnSize.textContent = webmDirect ? fmtSize(rawSize) : (lastWebmSize ? fmtSize(lastWebmSize) : '');
+      saveBtn.disabled = false;
+    }
   }
 }
 
@@ -201,7 +250,7 @@ async function captureTabPreview() {
 
 async function loadVideoPreview() {
   try {
-    const blob = await Site2GifDB.get('video');
+    const blob = await TalkoverDB.get('video');
     if (!blob) return;
     if (videoObjectUrl) URL.revokeObjectURL(videoObjectUrl);
     videoObjectUrl = URL.createObjectURL(blob);
@@ -227,14 +276,14 @@ async function loadVideoPreview() {
       }
     }
 
-    console.log(`[site2gif] Preview: video=${previewVideo.videoWidth}x${previewVideo.videoHeight}, duration=${videoDuration}`);
+    console.log(`[Talkover] Preview: video=${previewVideo.videoWidth}x${previewVideo.videoHeight}, duration=${videoDuration}`);
     // Show dimensions in the UI so we can verify the capture resolution
     durationText.textContent = (currentState?.duration ? fmtDur(currentState.duration) : fmtDur(videoDuration))
       + ` · ${previewVideo.videoWidth}×${previewVideo.videoHeight}`;
 
     // Load webcam overlay (recorded as separate stream, composited here via CSS)
     try {
-      const wcBlob = await Site2GifDB.get('webcam');
+      const wcBlob = await TalkoverDB.get('webcam');
       if (wcBlob) {
         if (doneWebcamUrl) URL.revokeObjectURL(doneWebcamUrl);
         doneWebcamUrl = URL.createObjectURL(wcBlob);
@@ -262,7 +311,7 @@ async function loadVideoPreview() {
 
 async function loadGifPreview() {
   try {
-    const blob = await Site2GifDB.get('gif');
+    const blob = await TalkoverDB.get('gif');
     if (!blob) return;
     if (gifObjectUrl) URL.revokeObjectURL(gifObjectUrl);
     gifObjectUrl = URL.createObjectURL(blob);
@@ -300,18 +349,18 @@ async function primeMediaAccess(type) {
     stream.getTracks().forEach(t => t.stop());
     return true; // permission is granted
   } catch (e) {
-    console.log(`[site2gif] primeMediaAccess("${type}") failed:`, e.name);
+    console.log(`[Talkover] primeMediaAccess("${type}") failed:`, e.name);
     return false; // permission not yet granted
   }
 }
 
 async function enumerateAudioDevices() {
-  console.log('[site2gif] enumerateAudioDevices()');
+  console.log('[Talkover] enumerateAudioDevices()');
   micSelect.innerHTML = '<option value="">None</option>';
 
   const granted = await primeMediaAccess('audio');
   if (!granted) {
-    console.log('[site2gif] Mic permission not granted → showing hint');
+    console.log('[Talkover] Mic permission not granted → showing hint');
     micPermHint.classList.add('show');
     updatePermHintsRow();
     return;
@@ -322,26 +371,26 @@ async function enumerateAudioDevices() {
   try {
     const devices = await navigator.mediaDevices.enumerateDevices();
     const mics = devices.filter(d => d.kind === 'audioinput' && d.deviceId && d.deviceId !== '');
-    console.log(`[site2gif] Found ${mics.length} mics`);
+    console.log(`[Talkover] Found ${mics.length} mics`);
     mics.forEach((d, i) => {
       const opt = document.createElement('option');
       opt.value = d.deviceId;
       opt.textContent = d.label || `Microphone ${i + 1}`;
       micSelect.appendChild(opt);
     });
-    console.log(`[site2gif] Mic dropdown: ${micSelect.options.length} options`);
+    console.log(`[Talkover] Mic dropdown: ${micSelect.options.length} options`);
   } catch (e) {
-    console.error('[site2gif] enumerateDevices failed:', e);
+    console.error('[Talkover] enumerateDevices failed:', e);
   }
 }
 
 async function enumerateCameraDevices() {
-  console.log('[site2gif] enumerateCameraDevices()');
+  console.log('[Talkover] enumerateCameraDevices()');
   webcamSelect.innerHTML = '<option value="">None</option>';
 
   const granted = await primeMediaAccess('video');
   if (!granted) {
-    console.log('[site2gif] Camera permission not granted → showing hint');
+    console.log('[Talkover] Camera permission not granted → showing hint');
     camPermHint.classList.add('show');
     updatePermHintsRow();
     return;
@@ -352,48 +401,48 @@ async function enumerateCameraDevices() {
   try {
     const devices = await navigator.mediaDevices.enumerateDevices();
     const cams = devices.filter(d => d.kind === 'videoinput' && d.deviceId && d.deviceId !== '');
-    console.log(`[site2gif] Found ${cams.length} cameras`);
+    console.log(`[Talkover] Found ${cams.length} cameras`);
     cams.forEach((d, i) => {
       const opt = document.createElement('option');
       opt.value = d.deviceId;
       opt.textContent = d.label || `Camera ${i + 1}`;
       webcamSelect.appendChild(opt);
     });
-    console.log(`[site2gif] Camera dropdown: ${webcamSelect.options.length} options`);
+    console.log(`[Talkover] Camera dropdown: ${webcamSelect.options.length} options`);
   } catch (e) {
-    console.error('[site2gif] enumerateDevices failed:', e);
+    console.error('[Talkover] enumerateDevices failed:', e);
   }
 }
 
 // ─── Webcam Preview ───
 
 async function startWebcamPreview(deviceId) {
-  console.log(`[site2gif] startWebcamPreview("${deviceId ? deviceId.slice(0,12) + '...' : ''}")`);
+  console.log(`[Talkover] startWebcamPreview("${deviceId ? deviceId.slice(0,12) + '...' : ''}")`);
   stopWebcamPreview();
   if (!deviceId) { webcamLive.style.display = 'none'; return; }
   try {
-    console.log('[site2gif] Requesting webcam stream with ideal deviceId...');
+    console.log('[Talkover] Requesting webcam stream with ideal deviceId...');
     webcamPreviewStream = await navigator.mediaDevices.getUserMedia({
       video: { deviceId: { ideal: deviceId }, width: { ideal: 320 }, height: { ideal: 240 } }
     });
-    console.log(`[site2gif] Webcam stream obtained: ${webcamPreviewStream.getVideoTracks().length} video track(s)`);
+    console.log(`[Talkover] Webcam stream obtained: ${webcamPreviewStream.getVideoTracks().length} video track(s)`);
     webcamLive.srcObject = webcamPreviewStream;
     webcamLive.style.display = '';
-    console.log('[site2gif] Webcam preview element updated and visible');
+    console.log('[Talkover] Webcam preview element updated and visible');
   } catch (e) {
-    console.error('[site2gif] Webcam preview failed:', e.name, e.message);
+    console.error('[Talkover] Webcam preview failed:', e.name, e.message);
     webcamLive.style.display = 'none';
     // Fallback: try without specific device
     try {
-      console.log('[site2gif] Trying fallback webcam (no specific device)...');
+      console.log('[Talkover] Trying fallback webcam (no specific device)...');
       webcamPreviewStream = await navigator.mediaDevices.getUserMedia({
         video: { width: { ideal: 320 }, height: { ideal: 240 } }
       });
-      console.log('[site2gif] Fallback webcam stream obtained');
+      console.log('[Talkover] Fallback webcam stream obtained');
       webcamLive.srcObject = webcamPreviewStream;
       webcamLive.style.display = '';
     } catch (e2) {
-      console.error('[site2gif] Webcam fallback also failed:', e2.name, e2.message);
+      console.error('[Talkover] Webcam fallback also failed:', e2.name, e2.message);
     }
   }
 }
@@ -425,16 +474,16 @@ function createMicBars() {
 }
 
 async function startMicMonitor(deviceId) {
-  console.log(`[site2gif] startMicMonitor("${deviceId ? deviceId.slice(0,12) + '...' : ''}")`);
+  console.log(`[Talkover] startMicMonitor("${deviceId ? deviceId.slice(0,12) + '...' : ''}")`);
   stopMicMonitor();
   if (!deviceId) return;
 
   try {
-    console.log('[site2gif] Requesting mic monitor stream...');
+    console.log('[Talkover] Requesting mic monitor stream...');
     micMonitorStream = await navigator.mediaDevices.getUserMedia({
       audio: { deviceId: { ideal: deviceId } }
     });
-    console.log(`[site2gif] Mic monitor stream obtained: ${micMonitorStream.getAudioTracks().length} audio track(s)`);
+    console.log(`[Talkover] Mic monitor stream obtained: ${micMonitorStream.getAudioTracks().length} audio track(s)`);
 
     micMonitorCtx = new AudioContext();
     const source = micMonitorCtx.createMediaStreamSource(micMonitorStream);
@@ -485,11 +534,12 @@ async function generateAndSaveGif() {
   isGeneratingGif = true;
   updateSaveButton();
   progressSection.style.display = '';
+  progressStage.textContent = 'Extracting';
   progressFill.style.width = '0%';
   progressLabel.textContent = '0%';
 
   try {
-    const videoBlob = await Site2GifDB.get('video');
+    const videoBlob = await TalkoverDB.get('video');
     if (!videoBlob) throw new Error('No recording found');
 
     const settings = currentState?.settings || {};
@@ -506,7 +556,7 @@ async function generateAndSaveGif() {
     // Load webcam recording for compositing
     let wcVideo = null, wcUrl = null;
     try {
-      const wcBlob = await Site2GifDB.get('webcam');
+      const wcBlob = await TalkoverDB.get('webcam');
       if (wcBlob) {
         wcVideo = document.createElement('video');
         wcVideo.muted = true;
@@ -565,16 +615,18 @@ async function generateAndSaveGif() {
     URL.revokeObjectURL(url);
     if (wcUrl) URL.revokeObjectURL(wcUrl);
 
+    progressStage.textContent = 'Encoding';
     const gifData = await encodeGifInWorker(frames, outW, outH, fps, quality, loop);
     const gifBlob = new Blob([gifData], { type: 'image/gif' });
-    await Site2GifDB.put('gif', gifBlob);
+    await TalkoverDB.put('gif', gifBlob);
     gifIsReady = true;
 
+    progressStage.textContent = '';
     progressFill.style.width = '100%';
     progressLabel.textContent = fmtSize(gifBlob.size);
     updateSaveButton();
     previewTabs.style.display = '';
-    triggerDownload(gifBlob, `site2gif-${ts()}.gif`);
+    triggerDownload(gifBlob, `talkover-${ts()}.gif`);
     setTimeout(() => { progressSection.style.display = 'none'; }, 1500);
   } catch (e) {
     console.error('GIF generation failed:', e);
@@ -651,6 +703,7 @@ function initTrimDrag() {
     const p = pctOf(e);
     if (dragging === 'start') trimStart = Math.min(p, trimEnd - 0.01);
     else trimEnd = Math.max(p, trimStart + 0.01);
+    lastMp4Size = 0; lastWebmSize = 0;
     if (gifIsReady) { gifIsReady = false; updateSaveButton(); previewTabs.style.display = 'none'; }
     updateTrimUI();
     if (previewVideo.src && videoDuration > 0)
@@ -767,13 +820,101 @@ function updateSetting(key, value) {
   msg('update-settings', { settings: { [key]: value } });
 }
 
+// ─── Video Save ───
+
+async function handleVideoSave(format) {
+  const blob = await TalkoverDB.get('video');
+  if (!blob) return;
+  const wcBlob = await TalkoverDB.get('webcam');
+  const hasTrim = trimStart > 0 || trimEnd < 1;
+
+  // Fast path: WebM with no trim and no webcam → direct download
+  if (format === 'webm' && !wcBlob && !hasTrim) {
+    triggerDownload(blob, `talkover-${ts()}.webm`);
+    return;
+  }
+
+  const allBtns = mp4Supported ? [saveBtnMp4, saveBtnWebm] : [saveBtn];
+  try {
+    allBtns.forEach(b => b.disabled = true);
+
+    const stageLabel = wcBlob ? 'Compositing'
+      : hasTrim ? 'Trimming'
+      : format === 'mp4' ? 'Encoding MP4' : 'Encoding';
+    progressSection.style.display = '';
+    progressStage.textContent = stageLabel;
+    progressFill.style.width = '0%';
+    progressLabel.textContent = '0%';
+
+    const exported = await exportVideo(blob, wcBlob, (pct) => {
+      progressFill.style.width = pct + '%';
+      progressLabel.textContent = pct + '%';
+    }, format);
+
+    // Cache actual size so the button shows it on future views
+    if (format === 'mp4') lastMp4Size = exported.size;
+    else lastWebmSize = exported.size;
+
+    progressStage.textContent = '';
+    progressFill.style.width = '100%';
+    progressLabel.textContent = fmtSize(exported.size);
+    const ext = format === 'mp4' ? 'mp4' : 'webm';
+    triggerDownload(exported, `talkover-${ts()}.${ext}`);
+    setTimeout(() => { progressSection.style.display = 'none'; }, 1500);
+  } catch (e) {
+    console.error('Export failed:', e);
+    progressSection.style.display = 'none';
+  } finally {
+    updateSaveButton();
+  }
+}
+
+// ─── Countdown ───
+
+function runCountdown() {
+  return new Promise(resolve => {
+    isCountingDown = true;
+    recordBtn.disabled = true;
+    recordingOverlay.style.display = 'none';
+    processingOverlay.style.display = 'none';
+    countdownOverlay.style.display = '';
+    captureTabPreview();
+
+    const nums = [3, 2, 1];
+    let i = 0;
+
+    function showNext() {
+      if (i >= nums.length) {
+        countdownOverlay.style.display = 'none';
+        isCountingDown = false;
+        resolve();
+        return;
+      }
+      countdownNum.className = 'countdown-num';
+      countdownNum.textContent = nums[i];
+      // Force reflow so the animation restarts
+      void countdownNum.offsetWidth;
+      i++;
+      setTimeout(() => {
+        countdownNum.classList.add('fade-out');
+        setTimeout(showNext, 350);
+      }, 650);
+    }
+    showNext();
+  });
+}
+
 // ─── Events ───
 
 function setupListeners() {
   // Record / Stop
-  recordBtn.addEventListener('click', () => {
-    if (currentState?.status === 'recording') msg('stop-recording');
-    else msg('start-recording');
+  recordBtn.addEventListener('click', async () => {
+    if (currentState?.status === 'recording') {
+      msg('stop-recording');
+    } else if (!isCountingDown) {
+      await runCountdown();
+      msg('start-recording');
+    }
   });
 
   // Cursor toggle
@@ -848,7 +989,7 @@ function setupListeners() {
   // Handle permission granted messages (from permissions page via background)
   chrome.runtime.onMessage.addListener((m) => {
     if (m.type === 'permissions-granted') {
-      console.log(`[site2gif] Permission granted for: ${m.mediaType}`);
+      console.log(`[Talkover] Permission granted for: ${m.mediaType}`);
       // Re-enumerate when popup re-opens — the message might arrive
       // while popup is still open if user keeps it open somehow
       if (m.mediaType === 'audio' || m.mediaType === 'both') {
@@ -914,34 +1055,23 @@ function setupListeners() {
     });
   });
 
-  // Unified save
+  // GIF save (also serves as WebM-only fallback when MP4 unsupported)
   saveBtn.addEventListener('click', async () => {
     if (selectedFormat === 'gif') {
       if (gifIsReady) {
-        const b = await Site2GifDB.get('gif');
-        if (b) triggerDownload(b, `site2gif-${ts()}.gif`);
+        const b = await TalkoverDB.get('gif');
+        if (b) triggerDownload(b, `talkover-${ts()}.gif`);
       } else {
         generateAndSaveGif();
       }
     } else {
-      const blob = await Site2GifDB.get('video');
-      if (!blob) return;
-      const wcBlob = await Site2GifDB.get('webcam');
-      // Only skip compositing if no webcam AND no trim
-      if (!wcBlob && trimStart === 0 && trimEnd === 1) {
-        triggerDownload(blob, `site2gif-${ts()}.webm`);
-        return;
-      }
-      try {
-        saveBtn.disabled = true;
-        saveBtnText.textContent = wcBlob ? 'Compositing...' : 'Trimming...';
-        saveBtnSize.textContent = '';
-        const exported = await exportVideo(blob, wcBlob);
-        triggerDownload(exported, `site2gif-${ts()}.webm`);
-      } catch (e) { console.error('Export failed:', e); }
-      finally { updateSaveButton(); }
+      handleVideoSave('webm');
     }
   });
+
+  // MP4 / WebM save buttons
+  saveBtnMp4.addEventListener('click', () => handleVideoSave('mp4'));
+  saveBtnWebm.addEventListener('click', () => handleVideoSave('webm'));
 
   // Preview VID / GIF toggle
   $$('.mode-pill').forEach(tab => {
@@ -969,11 +1099,14 @@ function setupListeners() {
     gifIsReady = false;
     isGeneratingGif = false;
     trimStart = 0; trimEnd = 1; videoDuration = 0;
+    lastMp4Size = 0; lastWebmSize = 0;
     stopPlayheadTracker();
     $$('.mode-pill').forEach(t => t.classList.toggle('active', t.dataset.tab === 'video'));
     $$('.format-opt').forEach(b => b.classList.toggle('active', b.dataset.format === 'gif'));
     gifOpts.style.display = '';
     videoInfo.style.display = 'none';
+    videoSaveBtns.style.display = 'none';
+    saveBtn.style.display = '';
     msg('clear');
   });
 
@@ -998,7 +1131,7 @@ function setupPillGroup(groupId, key, parse) {
 
 // ─── Video Export (trim + webcam compositing) ───
 
-async function exportVideo(videoBlob, webcamBlob) {
+async function exportVideo(videoBlob, webcamBlob, onProgress, outputFormat = 'webm') {
   // Create elements DYNAMICALLY and append to DOM with off-screen positioning.
   // The DOM #gifSourceVideo and #gifCanvas have display:none which breaks
   // captureStream() in Chrome. Elements must be in the DOM (not display:none)
@@ -1038,18 +1171,28 @@ async function exportVideo(videoBlob, webcamBlob) {
   document.body.appendChild(canvas);
   const ctx = canvas.getContext('2d');
 
-  console.log(`[site2gif] Export: canvas=${canvas.width}x${canvas.height}, video=${video.videoWidth}x${video.videoHeight}`);
+  console.log(`[Talkover] Export: canvas=${canvas.width}x${canvas.height}, video=${video.videoWidth}x${video.videoHeight}`);
 
   const canvasStream = canvas.captureStream(30);
 
   // Preserve audio in export by capturing from source video
+  let hasAudio = false;
   try {
     const sourceStream = video.captureStream();
-    sourceStream.getAudioTracks().forEach(t => canvasStream.addTrack(t));
+    const audioTracks = sourceStream.getAudioTracks();
+    audioTracks.forEach(t => canvasStream.addTrack(t));
+    hasAudio = audioTracks.length > 0;
   } catch (e) { console.warn('Audio capture for export unavailable:', e); }
 
-  const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
-    ? 'video/webm;codecs=vp9' : 'video/webm;codecs=vp8';
+  let mime;
+  if (outputFormat === 'mp4' && mp4Supported) {
+    mime = (hasAudio && mp4AudioSupported)
+      ? 'video/mp4;codecs=avc1,mp4a.40.2'
+      : 'video/mp4;codecs=avc1';
+  } else {
+    mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+      ? 'video/webm;codecs=vp9' : 'video/webm;codecs=vp8';
+  }
   const rec = new MediaRecorder(canvasStream, { mimeType: mime, videoBitsPerSecond: 5_000_000 });
   const chunks = [];
   rec.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
@@ -1085,6 +1228,8 @@ async function exportVideo(videoBlob, webcamBlob) {
     rec.start(100);
     video.play();
     if (wcVideo) wcVideo.play().catch(() => {});
+    const clipDuration = endSec - startSec;
+    let lastPct = -1;
     (function draw() {
       if (video.currentTime >= endSec || video.ended) {
         video.pause();
@@ -1095,6 +1240,10 @@ async function exportVideo(videoBlob, webcamBlob) {
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       if (wcVideo && wcVideo.readyState >= 2) {
         drawWebcamPIP(ctx, wcVideo, canvas.width, canvas.height, pos, shape);
+      }
+      if (onProgress && clipDuration > 0) {
+        const pct = Math.min(99, Math.round(((video.currentTime - startSec) / clipDuration) * 100));
+        if (pct !== lastPct) { lastPct = pct; onProgress(pct); }
       }
       requestAnimationFrame(draw);
     })();

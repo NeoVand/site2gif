@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "site2gif",
+  "name": "Talkover",
   "version": "1.0.0",
-  "description": "Capture your browser tab as GIF or video — perfect for quick demos and thumbnails",
+  "description": "Record your browser tab with webcam overlay — export as video or GIF. No account, no cloud.",
   "permissions": [
     "tabCapture",
     "activeTab",
@@ -17,7 +17,7 @@
   },
   "action": {
     "default_popup": "popup.html",
-    "default_title": "site2gif — Screen to GIF",
+    "default_title": "Talkover — Record & Talk Over Your Tab",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",

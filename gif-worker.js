@@ -1,4 +1,4 @@
-// site2gif — GIF Encoder Web Worker
+// Talkover — GIF Encoder Web Worker
 // Implements GIF89a with per-frame color quantization and LZW compression
 
 self.onmessage = function (e) {

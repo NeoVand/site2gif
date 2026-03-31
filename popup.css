@@ -1,4 +1,4 @@
-/* site2gif — Polished UI */
+/* Talkover — Polished UI */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
@@ -124,7 +124,11 @@ body {
 .processing-overlay {
   position: absolute; inset: 0;
   background: rgba(14,14,20,0.85);
-  display: flex; align-items: center; justify-content: center; z-index: 5;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; z-index: 5;
+}
+.processing-label {
+  font-size: 11px; font-weight: 500; color: var(--text2);
+  letter-spacing: .3px;
 }
 .spinner {
   width: 24px; height: 24px;
@@ -132,6 +136,32 @@ body {
   border-radius: 50%; animation: spin .7s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* Countdown overlay */
+.countdown-overlay {
+  position: absolute; inset: 0;
+  background: rgba(14,14,20,0.80);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 6;
+}
+.countdown-num {
+  font-size: 96px; font-weight: 800; line-height: 1;
+  color: white;
+  text-shadow: 0 0 40px var(--accent-glow), 0 2px 12px rgba(0,0,0,0.5);
+  animation: cd-pop 0.45s cubic-bezier(.22,.68,.31,1.15) forwards;
+}
+.countdown-num.fade-out {
+  animation: cd-fade 0.35s ease-out forwards;
+}
+@keyframes cd-pop {
+  0%   { transform: scale(0.3); opacity: 0; }
+  50%  { transform: scale(1.12); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes cd-fade {
+  0%   { transform: scale(1); opacity: 1; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
 
 /* Record button */
 .record-btn {
@@ -233,29 +263,35 @@ body {
   flex: 1 1 0;
   display: flex;
   align-items: flex-end;
-  justify-content: center;
-  gap: 2px;
+  gap: 1.5px;
   height: 32px;
-  padding: 4px 10px;
-  background: var(--green-dim);
+  padding: 4px 3px;
+  background: var(--accent-dim);
   border-radius: 6px;
-  border: 1px solid rgba(52,211,153,0.10);
+  border: 1px solid rgba(91,147,255,0.10);
   transition: border-color .3s;
 }
 .mic-level.active {
-  border-color: rgba(52,211,153,0.25);
+  border-color: rgba(91,147,255,0.25);
 }
 .mic-bar {
-  width: 3px;
-  flex-shrink: 0;
+  flex: 1;
+  min-width: 0;
   height: 2px;
   border-radius: 1.5px;
-  background: var(--green);
+  background: var(--accent);
   transition: height 0.07s ease-out;
   opacity: 0.2;
 }
 .mic-level.active .mic-bar {
   opacity: 1;
+}
+
+/* ─── Camera select (compact for single-row layout) ─── */
+.cam-select {
+  flex: 1 1 0;
+  min-width: 0;
+  text-overflow: ellipsis;
 }
 
 /* Position grid */
@@ -465,6 +501,11 @@ kbd {
 
 /* Progress */
 .gen-progress { display: flex; align-items: center; gap: 10px; }
+.gen-stage {
+  font-size: 10px; font-weight: 600; color: var(--text3);
+  text-transform: uppercase; letter-spacing: .4px;
+  white-space: nowrap;
+}
 .gen-bar {
   flex: 1; height: 5px; background: var(--s2);
   border-radius: 3px; overflow: hidden;
@@ -501,6 +542,22 @@ kbd {
   background: #35354a; box-shadow: none; filter: none; transform: none;
 }
 .save-size { font-weight: 500; opacity: .7; font-size: 12px; }
+
+/* Two-button video save layout */
+.video-save-btns { display: flex; gap: 6px; }
+.video-save-btns .save-btn { flex: 1; min-width: 0; width: auto; }
+.save-btn-mp4 {
+  background: linear-gradient(135deg, #4f8efa 0%, #6c6cf1 100%); color: white;
+}
+.save-btn-mp4:hover:not(:disabled) {
+  box-shadow: 0 4px 20px var(--accent-glow); filter: brightness(1.08); transform: translateY(-1px);
+}
+.save-btn-webm {
+  background: var(--s3); color: var(--text);
+}
+.save-btn-webm:hover:not(:disabled) {
+  background: #35354a;
+}
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 4px; }

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <link rel="stylesheet" href="popup.css">
-  <title>site2gif</title>
+  <title>Talkover</title>
 </head>
 <body>
   <div class="app">
@@ -22,12 +22,16 @@
         <video id="webcamLive" class="webcam-pip pos-BR" style="display:none" muted playsinline autoplay></video>
         <div class="processing-overlay" id="processingOverlay" style="display:none">
           <div class="spinner"></div>
+          <span class="processing-label">Saving recording...</span>
         </div>
         <div class="rec-overlay" id="recordingOverlay" style="display:none">
           <div class="rec-pill">
             <span class="rec-dot"></span>
             <span class="rec-time" id="recTimer">00:00</span>
           </div>
+        </div>
+        <div class="countdown-overlay" id="countdownOverlay" style="display:none">
+          <span class="countdown-num" id="countdownNum"></span>
         </div>
       </div>
 
@@ -75,19 +79,15 @@
       <div class="expand-panel" id="webcamPanel" style="display:none">
         <div class="panel-row">
           <span class="panel-label">Camera</span>
-          <select id="webcamSelect" class="dev-select">
+          <select id="webcamSelect" class="dev-select cam-select">
             <option value="">Select...</option>
           </select>
-        </div>
-        <div class="panel-row">
-          <span class="panel-label">Position</span>
           <div class="pos-grid">
             <button class="pos-dot" data-pos="TL" title="Top left"></button>
             <button class="pos-dot" data-pos="TR" title="Top right"></button>
             <button class="pos-dot" data-pos="BL" title="Bottom left"></button>
             <button class="pos-dot active" data-pos="BR" title="Bottom right"></button>
           </div>
-          <span class="panel-label" style="margin-left:auto">Shape</span>
           <div class="shape-btns" id="shapeGroup">
             <button class="shape-btn active" data-value="rect" title="Rectangle">
               <svg width="18" height="13" viewBox="0 0 18 13"><rect x="1" y="1" width="16" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
@@ -118,7 +118,7 @@
           </svg>
           New
         </button>
-        <span class="done-logo">site2gif</span>
+        <span class="done-logo">Talkover</span>
         <span class="done-dur"><span id="durationText"></span></span>
       </div>
 
@@ -187,10 +187,11 @@
         </div>
 
         <div class="video-info" id="videoInfo" style="display:none">
-          <p class="video-note">Original quality WebM. Trim applied if set.</p>
+          <p class="video-note" id="videoNote">Original quality WebM. Trim applied if set.</p>
         </div>
 
         <div class="gen-progress" id="progressSection" style="display:none">
+          <span class="gen-stage" id="progressStage"></span>
           <div class="gen-bar"><div class="gen-fill" id="progressFill"></div></div>
           <span class="gen-pct" id="progressLabel">0%</span>
         </div>
@@ -199,6 +200,16 @@
           <span id="saveBtnText">Save GIF</span>
           <span class="save-size" id="saveBtnSize"></span>
         </button>
+        <div class="video-save-btns" id="videoSaveBtns" style="display:none">
+          <button class="save-btn save-btn-mp4" id="saveBtnMp4">
+            <span id="saveBtnMp4Text">Save MP4</span>
+            <span class="save-size" id="saveBtnMp4Size"></span>
+          </button>
+          <button class="save-btn save-btn-webm" id="saveBtnWebm">
+            <span id="saveBtnWebmText">Save WebM</span>
+            <span class="save-size" id="saveBtnWebmSize"></span>
+          </button>
+        </div>
       </div>
     </div>
 
